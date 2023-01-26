@@ -8,7 +8,7 @@ def parse_args():
     parser.add_argument(
         '-a', '--arch',
         dest='arch',
-        choices=['amd64', 'arm64', 'armel', 'armhf', 'i386', 'mips64el', 'mipsel', 'ppc64el', 's390x'],
+        # choices=['amd64', 'arm64', 'armel', 'armhf', 'i386', 'mips64el', 'mipsel', 'ppc64el', 's390x'],
         required=True,
         help='architecture of the target system',
         type=str)

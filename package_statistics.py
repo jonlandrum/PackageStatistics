@@ -1,34 +1,18 @@
-import urllib.request
+import requests
 import gzip
 import sqlite3
+import sys
 
 from tqdm import tqdm
 
 
-class TqdmUpdateTo(tqdm):
-    """Displays a download progress bar
-    via: https://github.com/tqdm/tqdm/blob/master/examples/tqdm_wget.py"""
-    def update_to(self, b=1, bsize=1, tsize=None):
-        """Provides an update_to method
-        Attributes:
-            b:      int, optional
-                number of blocks transferred so far [default: 1].
-            bsize:  int, optional
-                size of each block (in tqdm units) [default: 1].
-            tsize:  int, optional
-                total size of progress bar (in tqdm units). [default: None]; if None, remains unchanged.
-        """
-        if tsize is not None:
-            self.total = tsize
-        self.update(b * bsize - self.n)
-        self.total = self-n
-
-
 class PackageStatistics(object):
-    """Reads the contents index file for the specified architecture and prints the statistics of the top ten packages
+    """Reads the contents index file for the specified architecture and prints
+    the statistics of the top ten packages
+
     Attributes:
         arch:   str
-            architecture of the target system.
+            architecture to query
     """
     def __init__(self, arch=''):
         """Initialize this instance with supplied values"""
@@ -43,27 +27,54 @@ class PackageStatistics(object):
         self.download_contents_index()
 
     def create_contents_database(self):
-        """Creates the SQLite3 database in the current directory"""
+        """Creates the SQLite3 database in memory"""
         cur = self.conn.cursor()
-        cur.execute('CREATE TABLE IF NOT EXISTS contents (id INTEGER PRIMARY KEY AUTOINCREMENT, file, location);')
+        command = 'CREATE TABLE contents (' \
+                  'id INTEGER PRIMARY KEY AUTOINCREMENT, ' \
+                  'file TEXT, ' \
+                  'location TEXT);'
+        cur.execute(command)
 
     def download_contents_index(self):
-        """Downloads the relevant contents index file to the current directory"""
+        """Downloads the relevant contents index file to the current directory.
+
+        Inspiration taken from https://stackoverflow.com/a/62113263/2386514
+        for the status bar.
+        """
         repository = 'http://ftp.uk.debian.org/debian/dists/stable/main/'
-        # http://ftp.archive.ubuntu.com/ubuntu/dists/trusty/
+        #             http://ftp.archive.ubuntu.com/ubuntu/dists/trusty/
         url = '{}{}'.format(repository, self.file)
-        with TqdmUpdateTo(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc=url.split('/')[-1]) as prog:
-            urllib.request.urlretrieve(url, filename=self.file, reporthook=prog.update_to, data=None)
+        response = requests.get(url, stream=True, allow_redirects=True)
+        if response.status_code == 404:
+            sys.exit(
+                'The file "{}" does not exist on the remote server'.format(
+                    self.file))
+        if response.status_code != 200:
+            sys.exit(
+                'There was an error retrieving the file from the remote server')
+        total_size = int(response.headers.get('Content-Length', 0))
+        with open(self.file, 'wb') as file, tqdm(
+                desc=self.file,
+                total=total_size,
+                unit='iB',
+                unit_scale=True,
+                unit_divisor=1024) as bar:
+            for data in response.iter_content(chunk_size=1024):
+                size = file.write(data)
+                bar.update(size)
 
     def populate_contents_database(self):
+        """Parses the downloaded file and populates the database with the
+        file/location pairs
+        """
         cur = self.conn.cursor()
         with gzip.open(self.file, 'rb') as f:
             has_pre_text = False
+            first_line = f.readline().strip('\n')
+            if '/' not in first_line:
+                has_pre_text = True
             for line in f:
-                if '/' not in line:
-                    has_pre_text = True
-                    continue
-                else:
-                    words = line.split()
-                    if has_pre_text:
-                        if words[0] == 'FILE' and words[-1] == 'LOCATION':
+                words = line.split()
+                if has_pre_text:
+                    if words[0] == 'FILE' and words[-1] == 'LOCATION':
+                        pass
