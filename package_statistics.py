@@ -12,11 +12,11 @@ class TqdmUpdateTo(tqdm):
         """Provides an update_to method
         Attributes:
             b:      int, optional
-                Number of blocks transferred so far [default: 1].
+                number of blocks transferred so far [default: 1].
             bsize:  int, optional
-                Size of each block (in tqdm units) [default: 1].
+                size of each block (in tqdm units) [default: 1].
             tsize:  int, optional
-                Total size of progress bar (in tqdm units). [default: None]. Note: if default, remains unchanged.
+                total size of progress bar (in tqdm units). [default: None]; if None, remains unchanged.
         """
         if tsize is not None:
             self.total = tsize
@@ -26,12 +26,14 @@ class TqdmUpdateTo(tqdm):
 class PackageStatistics(object):
     """Reads the contents index file for the specified architecture and prints the statistics of the top ten packages
     Attributes:
-        architecture: architecture of the target system.
+        arch:   str
+            architecture of the target system.
     """
-    def __init__(self, architecture=''):
-        self.architecture = architecture
-        self.con = sqlite3.connect('contents.db')
-        self.contents = 'Contents-{}.gz'.format(self.architecture)
+    def __init__(self, arch=''):
+        """Initialize this instance with supplied values"""
+        self.arch = arch
+        self.conn = sqlite3.connect(':memory:')
+        self.file = 'Contents-{}.gz'.format(self.arch)
         self.print_packages()
 
     def print_packages(self):
@@ -40,11 +42,13 @@ class PackageStatistics(object):
         self.download_contents_index()
 
     def create_contents_database(self):
-        cur = self.con.cursor()
+        """Creates the SQLite3 database in the current directory"""
+        cur = self.conn.cursor()
         cur.execute('CREATE TABLE IF NOT EXISTS contents (id INTEGER PRIMARY KEY AUTOINCREMENT, file, location);')
 
     def download_contents_index(self):
         """Downloads the relevant contents index file to the current directory"""
         repository = 'http://ftp.uk.debian.org/debian/dists/stable/main/'
-        url = '{}{}'.format(repository, self.contents)
-        TqdmUpdateTo(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc=url.split('/')[-1])
+        url = '{}{}'.format(repository, self.file)
+        with TqdmUpdateTo(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc=url.split('/')[-1]) as prog:
+            urllib.
