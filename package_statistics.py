@@ -51,4 +51,5 @@ class PackageStatistics(object):
         repository = 'http://ftp.uk.debian.org/debian/dists/stable/main/'
         url = '{}{}'.format(repository, self.file)
         with TqdmUpdateTo(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc=url.split('/')[-1]) as prog:
-            urllib.
+            file, headers = urllib.request.urlretrieve(url, filename=self.file, reporthook=prog.update_to, data=None)
+            prog.total = prog.n
