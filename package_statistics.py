@@ -20,7 +20,8 @@ class TqdmUpdateTo(tqdm):
         """
         if tsize is not None:
             self.total = tsize
-        return self.update(b * bsize - self.n)
+        self.update(b * bsize - self.n)
+        self.total = self-n
 
 
 class PackageStatistics(object):
@@ -49,7 +50,20 @@ class PackageStatistics(object):
     def download_contents_index(self):
         """Downloads the relevant contents index file to the current directory"""
         repository = 'http://ftp.uk.debian.org/debian/dists/stable/main/'
+        # http://ftp.archive.ubuntu.com/ubuntu/dists/trusty/
         url = '{}{}'.format(repository, self.file)
         with TqdmUpdateTo(unit='B', unit_scale=True, unit_divisor=1024, miniters=1, desc=url.split('/')[-1]) as prog:
-            file, headers = urllib.request.urlretrieve(url, filename=self.file, reporthook=prog.update_to, data=None)
-            prog.total = prog.n
+            urllib.request.urlretrieve(url, filename=self.file, reporthook=prog.update_to, data=None)
+
+    def populate_contents_database(self):
+        cur = self.conn.cursor()
+        with gzip.open(self.file, 'rb') as f:
+            has_pre_text = False
+            for line in f:
+                if '/' not in line:
+                    has_pre_text = True
+                    continue
+                else:
+                    words = line.split()
+                    if has_pre_text:
+                        if words[0] == 'FILE' and words[-1] == 'LOCATION':
