@@ -16,6 +16,12 @@ The specification of the content index file is provided at [wiki.debian.org](htt
 >
 > Clients should ignore lines not conforming to this scheme. Clients should correctly handle file names containing white space characters (possibly taking advantage of the fact that package names cannot include white space characters).
 
+The implication for this description is that the following line is both a valid example of text that can appear in the free-form text section as well as text that can appear in the table:
+
+    foo bar
+
+This line can be an example of an entry in the table if the file `foo` is located in the root directory of the system. And since the location does not require a section prefix, there are no `/` characters present anywhere in the line, despite the line being completely valid. As such, there is no way to use a regular expression to find the first entry in the table; assumptions must be made about parsing the file.
+
 Assumptions
 -----------
 The format definition of the contents index file gives two vague specifications:
