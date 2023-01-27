@@ -1,8 +1,9 @@
-import requests
 import gzip
+import requests
 import sqlite3
 import sys
 
+from time import time
 from tqdm import tqdm
 
 
@@ -26,14 +27,32 @@ class PackageStatistics(object):
         self.create_contents_database()
         self.download_contents_index()
         self.populate_contents_database()
+        cur = self.conn.cursor()
+        cur.execute("""
+            SELECT location, COUNT(*) as number
+            FROM contents
+            GROUP BY location
+            ORDER BY number DESC
+            LIMIT 10;
+        """)
+        results = cur.fetchall()
+        line = 1
+        print('Rank\t{:<40}\tCount'.format('Package'))
+        print('-------------------------------------------------------------')
+        for result in results:
+            print('{:>3}.\t{:<40}\t{}'.format(line, result[0], result[1]))
+            line = line + 1
 
     def create_contents_database(self):
         """Creates the SQLite3 database in memory"""
         cur = self.conn.cursor()
-        command = 'CREATE TABLE contents (' \
-                  'id INTEGER PRIMARY KEY AUTOINCREMENT, ' \
-                  'file TEXT, ' \
-                  'location TEXT);'
+        command = """
+        CREATE TABLE contents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file TEXT,
+            location TEXT
+        );
+                  """
         cur.execute(command)
 
     def download_contents_index(self):
@@ -43,7 +62,7 @@ class PackageStatistics(object):
         for the progress bar.
         """
         repository = 'http://ftp.uk.debian.org/debian/dists/stable/main/'
-        #             http://ftp.archive.ubuntu.com/ubuntu/dists/trusty/
+        # repository = 'http://ftp.archive.ubuntu.com/ubuntu/dists/trusty/'
         url = '{}{}'.format(repository, self.file)
         response = requests.get(url, stream=True, allow_redirects=True)
         if response.status_code == 404:
@@ -69,16 +88,24 @@ class PackageStatistics(object):
         file/location pairs
         """
         cur = self.conn.cursor()
-        with gzip.open(self.file, 'rb') as f:
-            has_pre_text = False
+        with gzip.open(self.file, 'rt', encoding='ISO-8859-1') as f:
             first_line = f.readline().strip('\n')
-            f.rewind()
+            f.seek(0, 0)
             if '/' not in first_line:  # See README.md for explanation
-                has_pre_text = True
+                words = first_line.rsplit(' ', 1)
+                while words[0] != 'FILE' and words[-1] != 'LOCATION':
+                    line = f.readline().strip('\n').strip()
+                    words = line.rsplit(' ', 1)
+                f.readline().strip('\n').strip()
+            print('Processing', end='', flush=True)
+            start = time()
             for line in f:
-                words = line.strip().split(' ', 1)
-                if has_pre_text:
-                    while words[0] != 'FILE' and words[-1] != 'LOCATION':
-                        continue
-                file, location = words[0], words[-1]
-                print('{}\t{}'.format(file, location))
+                words = line.strip().rsplit(' ', 1)
+                file, locations = words[0].strip(), words[-1].split(',')
+                for location in locations:
+                    cur.execute("""
+                        INSERT INTO contents (file, location) VALUES (?, ?)
+                    """, (file, location))
+                    now = time() - start
+                    if now > 0 and now % 1 == 0: print('.', end='', flush=True)
+            print()
