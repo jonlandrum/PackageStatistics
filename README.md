@@ -3,6 +3,8 @@ Package Statistics
 
 A CLI program for outputting package statistics for a given Debian repository. The data is gathered from Debian context files within the repository for a given system architecture.
 
+I spent roughly a week on this working in the evenings after work.
+
 File Definition
 ---------------
 The specification of the content index file is provided at [wiki.debian.org](https://wiki.debian.org/DebianRepository/Format?action=show&redirect=RepositoryFormat#A.22Contents.22_indices):
